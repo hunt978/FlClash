@@ -25,6 +25,40 @@ jobs:
         with:
           submodules: recursive
 
+      # Cache the Go compiler cache so unchanged core sources skip recompiling.
+      - name: Cache Go build
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/go-build
+          key: ${{ runner.os }}-go-build-${{ hashFiles('core/go.sum') }}
+          restore-keys: ${{ runner.os }}-go-build-
+
+      # Cache pub packages; pubspec.lock pins exact versions.
+      - name: Cache pub
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('pubspec.lock') }}
+          restore-keys: ${{ runner.os }}-pub-
+
+      # Cache the NDK zip itself; unzipping locally is far cheaper than
+      # re-downloading it from dl.google.com on every run.
+      - name: Cache NDK
+        uses: actions/cache@v4
+        id: ndk-cache
+        with:
+          path: ndk-${{ env.NDK_VERSION }}.zip
+          key: ${{ runner.os }}-ndk-${{ env.NDK_VERSION }}
+
+      - name: Download NDK
+        if: steps.ndk-cache.outputs.cache-hit != 'true'
+        run: curl -fL --retry 3 -o "ndk-${{ env.NDK_VERSION }}.zip" "https://dl.google.com/android/repository/android-ndk-${{ env.NDK_VERSION }}-linux.zip"
+
+      - name: Install NDK
+        run: |
+          unzip -q -o "ndk-${{ env.NDK_VERSION }}.zip"
+          echo "${GITHUB_WORKSPACE}/android-ndk-${{ env.NDK_VERSION }}" >> "$GITHUB_PATH"
+
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
@@ -41,14 +75,6 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
-      - name: Setup NDK
-        uses: nttld/setup-ndk@v1
-        id: build-ndk
-        with:
-          ndk-version: ${{ env.NDK_VERSION }}
-          add-to-path: true
-          link-to-sdk: true
-
       - name: Get Flutter Dependency
         run: |
           flutter --version
@@ -59,7 +85,7 @@ jobs:
       # automatically with no secrets involved.
       - name: Build arm64 APK
         env:
-          ANDROID_NDK_HOME: ${{ steps.build-ndk.outputs.ndk-path }}
+          ANDROID_NDK_HOME: ${{ github.workspace }}/android-ndk-${{ env.NDK_VERSION }}
         run: dart setup.dart android --arch arm64 -v
 
       - name: Upload APK
