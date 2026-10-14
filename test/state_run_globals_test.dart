@@ -9,7 +9,7 @@ import 'package:riverpod/riverpod.dart';
 
 final _packageInfo = PackageInfo(
   appName: 'FlClash',
-  packageName: 'com.follow.clash',
+  packageName: 'com.initialsoft.flclash',
   version: '1.2.3',
   buildNumber: '1',
 );
