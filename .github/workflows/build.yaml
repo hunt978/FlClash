@@ -3,7 +3,7 @@ name: build
 on:
   push:
     branches:
-      - '**'
+      - custom
     tags:
       - 'v*'
   workflow_dispatch:
@@ -13,7 +13,9 @@ concurrency:
   cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/v') }}
 
 env:
-  IS_STABLE: ${{ !contains(github.ref, '-') }}
+  # Stable means a v* tag without a pre-release suffix; branch pushes and
+  # suffixed tags build like upstream master.
+  IS_STABLE: ${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-') }}
   FLUTTER_VERSION: '3.47.6'
   GO_VERSION: '1.27.1'
   NDK_VERSION: r28c
@@ -310,8 +312,9 @@ jobs:
         run: cargo test --manifest-path services/helper/Cargo.toml --features windows-service
 
   build:
-    # Build the APK on any repository: v* tag pushes, or manually on demand.
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
+    # Build the APK whenever custom is pushed (upstream syncs land here) or a
+    # v* tag is pushed, plus on manual runs.
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/custom' || startsWith(github.ref, 'refs/tags/v')
     needs: [ dart, plugins, go, android, rust, windows-helper-test ]
     runs-on: ${{ matrix.os }}
     # Signing is optional: without secrets the APK is debug-signed with a .dev suffix.
